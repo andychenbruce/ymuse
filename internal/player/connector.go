@@ -18,6 +18,7 @@ package player
 import (
 	"github.com/fhs/gompd/v2/mpd"
 	"github.com/pkg/errors"
+	"sort"
 	"sync"
 	"time"
 )
@@ -131,6 +132,9 @@ func (c *Connector) GetPlaylists() []string {
 	for i, a := range attrs {
 		names[i] = a["playlist"]
 	}
+
+	// Sort the list by name
+	sort.Strings(names)
 	return names
 }
 
@@ -143,7 +147,7 @@ func (c *Connector) IfConnected(funcIfConnected func(client *mpd.Client)) {
 	}
 }
 
-// IsConnected returns whether there's a connection with MPD and whether it's being established
+// ConnectStatus returns whether there's a connection with MPD and whether it's being established
 func (c *Connector) ConnectStatus() (bool, bool) {
 	c.mpdClientMutex.RLock()
 	defer c.mpdClientMutex.RUnlock()
