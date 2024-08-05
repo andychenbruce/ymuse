@@ -30,7 +30,7 @@ Watch Ymuse feature tour video:
 
 ### Requirements
 
-* Go 1.21+
+* Go 1.22+
 * GTK 3.24+
 
 ### Getting started
