@@ -18,14 +18,8 @@ package player
 import (
 	"C"
 	"bytes"
+	"errors"
 	"fmt"
-	"github.com/fhs/gompd/v2/mpd"
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
-	"github.com/yktoo/ymuse/internal/config"
-	"github.com/yktoo/ymuse/internal/util"
 	"html"
 	"html/template"
 	"path"
@@ -33,6 +27,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fhs/gompd/v2/mpd"
+	"github.com/gotk3/gotk3/gdk"
+	"github.com/gotk3/gotk3/glib"
+	"github.com/gotk3/gotk3/gtk"
+	"github.com/yktoo/ymuse/internal/config"
+	"github.com/yktoo/ymuse/internal/util"
 )
 
 // MainWindow represents the main application window
