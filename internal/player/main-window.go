@@ -34,6 +34,7 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/yktoo/ymuse/internal/config"
 	"github.com/yktoo/ymuse/internal/util"
+	"github.com/godbus/dbus/v5"
 )
 
 // MainWindow represents the main application window
@@ -257,6 +258,11 @@ func NewMainWindow(application *gtk.Application) (*MainWindow, error) {
 		"on_StreamsDeleteMenuItem_activate":            w.onStreamDelete,
 	})
 
+	glib.IdleAdd(func() {
+		w.syncWithPortal()
+	})
+	w.watchThemeChanges()
+	
 	// Register the main window with the app
 	application.AddWindow(w.AppWindow)
 
@@ -2826,4 +2832,65 @@ func (w *MainWindow) updateVolume() {
 		w.VolumeAdjustment.SetValue(float64(vol))
 		w.volumeUpdating = false
 	}
+}
+
+// IsSystemDarkMode tell if the system set to dark mode using the xdg portal
+func IsSystemDarkMode() bool {
+	
+	// https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		return false
+	}
+
+	obj := conn.Object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
+	
+	var variant dbus.Variant
+	err = obj.Call("org.freedesktop.portal.Settings.Read", 0, "org.freedesktop.appearance", "color-scheme").Store(&variant)
+	if err != nil {
+		return false
+	}
+
+	var scheme uint32
+	if err := variant.Value().(dbus.Variant).Store(&scheme); err != nil {
+		return false
+	}
+
+	return scheme == 1
+}
+
+// syncWithPortal update the gtk properties to use the system prefered light/dark theme
+func (w *MainWindow) syncWithPortal() {
+	isDark := IsSystemDarkMode()
+	
+	settings, _ := gtk.SettingsGetDefault()
+	settings.SetProperty("gtk-application-prefer-dark-theme", isDark)
+	
+	w.updateStyle()
+}
+
+// watchThemeChanges registers a dbus signal to update the theme when the setting changes
+func (w *MainWindow) watchThemeChanges() {
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		return
+	}
+	
+	rule := "type='signal',interface='org.freedesktop.portal.Settings',member='SettingChanged'"
+	conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, rule)
+
+	c := make(chan *dbus.Signal, 10)
+	conn.Signal(c)
+
+	go func() {
+		for sig := range c {
+			if len(sig.Body) >= 2 && 
+			   sig.Body[0] == "org.freedesktop.appearance" && 
+			   sig.Body[1] == "color-scheme" {
+				   glib.IdleAdd(func() {
+					   w.syncWithPortal()
+				   })
+			   }
+		}
+	}()
 }
