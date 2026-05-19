@@ -29,12 +29,12 @@ import (
 	"time"
 
 	"github.com/fhs/gompd/v2/mpd"
+	"github.com/godbus/dbus/v5"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/yktoo/ymuse/internal/config"
 	"github.com/yktoo/ymuse/internal/util"
-	"github.com/godbus/dbus/v5"
 )
 
 // MainWindow represents the main application window
@@ -42,6 +42,7 @@ type MainWindow struct {
 	app       *gtk.Application // Application reference
 	connector *Connector       // Connector instance
 	mapped    bool             // Whether the main window is mapped (~visible)
+	dbusConn  *dbus.Conn       // DBus connection
 
 	// Control widgets
 	AppWindow              *gtk.ApplicationWindow // Main window
@@ -258,11 +259,14 @@ func NewMainWindow(application *gtk.Application) (*MainWindow, error) {
 		"on_StreamsDeleteMenuItem_activate":            w.onStreamDelete,
 	})
 
-	glib.IdleAdd(func() {
-		w.syncWithPortal()
-	})
-	w.watchThemeChanges()
-	
+	// Synchronise settings with DBus and subscribe to changes
+	if w.dbusConn, err = dbus.SessionBus(); err != nil {
+		log.Warningf("Failed to establish DBus connection: %v", err)
+	} else {
+		glib.IdleAdd(w.updateThemeSetting)
+		w.watchThemeChanges()
+	}
+
 	// Register the main window with the app
 	application.AddWindow(w.AppWindow)
 
@@ -282,6 +286,22 @@ func NewMainWindow(application *gtk.Application) (*MainWindow, error) {
 	// Instantiate a connector
 	w.connector = NewConnector(w.onConnectorStatusChange, w.onConnectorHeartbeat, w.onConnectorSubsystemChange)
 	return w, nil
+}
+
+// isSystemDarkMode tells if the system is set to dark mode using the XDG portal (see
+// https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html)
+func (w *MainWindow) isSystemDarkMode() bool {
+	if w.dbusConn != nil {
+		obj := w.dbusConn.Object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
+		var v dbus.Variant
+		if err := obj.Call("org.freedesktop.portal.Settings.Read", 0, "org.freedesktop.appearance", "color-scheme").Store(&v); err == nil {
+			var scheme uint32
+			if err := v.Value().(dbus.Variant).Store(&scheme); err == nil {
+				return scheme == 1
+			}
+		}
+	}
+	return false
 }
 
 func (w *MainWindow) onConnectorStatusChange() {
@@ -994,13 +1014,13 @@ func (w *MainWindow) getQueueSelectedTrackAttrs() (mpd.Attrs, error) {
 
 		// If no data returned
 		if len(attrs) == 0 {
-			return nil, errors.New("No data returned by MPD for the current selection")
+			return nil, errors.New("no data returned by MPD for the current selection")
 		}
 
 		// All OK
 		return attrs[0], nil
 	}
-	return nil, errors.New("No selection in the queue")
+	return nil, errors.New("no selection in the queue")
 }
 
 // getSelectedLibraryElement returns the path element of the currently selected library item or nil if there's an error
@@ -2820,6 +2840,18 @@ func (w *MainWindow) updateStyle() {
 	}
 }
 
+// updateThemeSetting updates the GTK prefer-theme setting to the system preferred theme using the GSettings backend
+func (w *MainWindow) updateThemeSetting() {
+	if settings, err := gtk.SettingsGetDefault(); err != nil {
+		log.Warningf("updateThemeSetting: SettingsGetDefault() failed: %v", err)
+	} else if err := settings.SetProperty("gtk-application-prefer-dark-theme", w.isSystemDarkMode()); err != nil {
+		log.Warningf("updateThemeSetting: SetProperty() failed: %v", err)
+	} else {
+		// Update the player appearance
+		w.updateStyle()
+	}
+}
+
 // updateVolume synchronises the volume scale position to the current MPD volume
 func (w *MainWindow) updateVolume() {
 	// Update the volume button's state
@@ -2834,63 +2866,25 @@ func (w *MainWindow) updateVolume() {
 	}
 }
 
-// IsSystemDarkMode tell if the system set to dark mode using the xdg portal
-func IsSystemDarkMode() bool {
-	
-	// https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html
-	conn, err := dbus.SessionBus()
-	if err != nil {
-		return false
-	}
-
-	obj := conn.Object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
-	
-	var variant dbus.Variant
-	err = obj.Call("org.freedesktop.portal.Settings.Read", 0, "org.freedesktop.appearance", "color-scheme").Store(&variant)
-	if err != nil {
-		return false
-	}
-
-	var scheme uint32
-	if err := variant.Value().(dbus.Variant).Store(&scheme); err != nil {
-		return false
-	}
-
-	return scheme == 1
-}
-
-// syncWithPortal update the gtk properties to use the system prefered light/dark theme
-func (w *MainWindow) syncWithPortal() {
-	isDark := IsSystemDarkMode()
-	
-	settings, _ := gtk.SettingsGetDefault()
-	settings.SetProperty("gtk-application-prefer-dark-theme", isDark)
-	
-	w.updateStyle()
-}
-
-// watchThemeChanges registers a dbus signal to update the theme when the setting changes
+// watchThemeChanges registers a DBus signal to update the theme when the setting changes
 func (w *MainWindow) watchThemeChanges() {
-	conn, err := dbus.SessionBus()
-	if err != nil {
-		return
+	if w.dbusConn != nil {
+		// Register a DBus signal
+		w.dbusConn.BusObject().Call(
+			"org.freedesktop.DBus.AddMatch",
+			0,
+			"type='signal',interface='org.freedesktop.portal.Settings',member='SettingChanged'")
+		c := make(chan *dbus.Signal, 10)
+		w.dbusConn.Signal(c)
+
+		// Monitor theme changes via the signal
+		go func() {
+			for sig := range c {
+				if len(sig.Body) >= 2 && sig.Body[0] == "org.freedesktop.appearance" && sig.Body[1] == "color-scheme" {
+					log.Debug("Color scheme change detected")
+					glib.IdleAdd(w.updateThemeSetting)
+				}
+			}
+		}()
 	}
-	
-	rule := "type='signal',interface='org.freedesktop.portal.Settings',member='SettingChanged'"
-	conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, rule)
-
-	c := make(chan *dbus.Signal, 10)
-	conn.Signal(c)
-
-	go func() {
-		for sig := range c {
-			if len(sig.Body) >= 2 && 
-			   sig.Body[0] == "org.freedesktop.appearance" && 
-			   sig.Body[1] == "color-scheme" {
-				   glib.IdleAdd(func() {
-					   w.syncWithPortal()
-				   })
-			   }
-		}
-	}()
 }
