@@ -57,7 +57,7 @@ func ShowOutputsDialog(parent gtk.IWindow, c *Connector) {
 	d.OutputsDialog.SetTransientFor(parent)
 
 	// Map the handlers to callback functions
-	builder.ConnectSignals(map[string]interface{}{
+	builder.ConnectSignals(map[string]any{
 		"on_OutputsDialog_map": d.populateOutputs,
 	})
 

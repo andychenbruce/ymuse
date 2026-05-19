@@ -40,10 +40,10 @@ func NewBuilder(content string) (*Builder, error) {
 
 // BindWidgets binds the builder's widgets to same-named fields in the provided struct. Only exported fields are taken
 // into account
-func (b *Builder) BindWidgets(obj interface{}) error {
+func (b *Builder) BindWidgets(obj any) error {
 	// We're only dealing with structs
 	vPtr := reflect.ValueOf(obj)
-	if vPtr.Kind() != reflect.Ptr || vPtr.IsNil() || vPtr.Elem().Kind() != reflect.Struct {
+	if vPtr.Kind() != reflect.Pointer || vPtr.IsNil() || vPtr.Elem().Kind() != reflect.Struct {
 		return fmt.Errorf("*struct expected, %T was given", obj)
 	}
 
@@ -57,7 +57,7 @@ func (b *Builder) BindWidgets(obj interface{}) error {
 		if valField.CanSet() {
 			// Verify it's a pointer
 			typeField := t.Field(i)
-			if valField.Kind() != reflect.Ptr {
+			if valField.Kind() != reflect.Pointer {
 				return fmt.Errorf("struct's field %s is %v, but only pointers are supported", typeField.Name, valField.Kind())
 			}
 

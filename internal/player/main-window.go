@@ -2466,7 +2466,7 @@ func (w *MainWindow) updatePlayerSeekBar() {
 	if trackPos >= 0 {
 		seekPos = fmt.Sprintf("<big>%s</big>", util.FormatSeconds(trackPos))
 		if trackLen >= trackPos {
-			seekPos += fmt.Sprintf(" / " + util.FormatSeconds(trackLen))
+			seekPos += " / " + util.FormatSeconds(trackLen)
 		}
 	}
 	w.PositionLabel.SetMarkup(seekPos)

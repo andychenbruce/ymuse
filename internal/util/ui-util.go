@@ -17,14 +17,15 @@ package util
 
 import (
 	"fmt"
+	"html"
+
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
-	"html"
 )
 
 // ClearChildren removes all container's children
 func ClearChildren(container gtk.Container) {
-	container.GetChildren().Foreach(func(item interface{}) {
+	container.GetChildren().Foreach(func(item any) {
 		container.Remove(item.(gtk.IWidget))
 	})
 }
@@ -180,8 +181,8 @@ func EditDialog(parent gtk.IWindow, title, value, okButton string) (string, bool
 		title,
 		parent,
 		gtk.DIALOG_MODAL,
-		[]interface{}{okButton, gtk.RESPONSE_OK},
-		[]interface{}{"Cancel", gtk.RESPONSE_CANCEL})
+		[]any{okButton, gtk.RESPONSE_OK},
+		[]any{"Cancel", gtk.RESPONSE_CANCEL})
 	if errCheck(err, "DialogNewWithButtons() failed") {
 		return "", false
 	}
@@ -245,7 +246,7 @@ func EntryText(entry *gtk.Entry, def string) string {
 
 // ErrorDialog shows an error message dialog
 func ErrorDialog(parent gtk.IWindow, text string) {
-	dlg := gtk.MessageDialogNew(parent, gtk.DIALOG_MODAL, gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, text)
+	dlg := gtk.MessageDialogNew(parent, gtk.DIALOG_MODAL, gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "%s", text)
 	defer dlg.Destroy()
 	dlg.Run()
 }

@@ -133,7 +133,7 @@ func TestParseFloatDef(t *testing.T) {
 func TestDefault(t *testing.T) {
 	type args struct {
 		def   string
-		value interface{}
+		value any
 	}
 	tests := []struct {
 		name string

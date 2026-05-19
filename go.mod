@@ -1,6 +1,6 @@
 module github.com/yktoo/ymuse
 
-go 1.22
+go 1.26
 
 require (
 	github.com/fhs/gompd/v2 v2.3.0
@@ -9,4 +9,4 @@ require (
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
 )
 
-require golang.org/x/sys v0.27.0 // indirect
+require golang.org/x/sys v0.44.0 // indirect

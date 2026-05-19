@@ -26,7 +26,7 @@ func TestBuilder_BindWidgets(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
-		target  interface{}
+		target  any
 		wantErr bool
 	}{
 		{

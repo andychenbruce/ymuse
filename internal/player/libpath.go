@@ -17,12 +17,13 @@ package player
 
 import (
 	"fmt"
+	"path"
+	"strings"
+
 	"github.com/fhs/gompd/v2/mpd"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/yktoo/ymuse/internal/config"
 	"github.com/yktoo/ymuse/internal/util"
-	"path"
-	"strings"
 )
 
 // LibraryPathElement represents one element in the library path
@@ -87,16 +88,15 @@ const (
 // UnmarshalLibPathElement instantiates and initialises a library path element from the given serialised string form
 func UnmarshalLibPathElement(data string) (LibraryPathElement, error) {
 	// Extract type prefix
-	i := strings.Index(data, pathFieldSeparator)
-	if i < 0 {
+	prefix, elem, ok := strings.Cut(data, pathFieldSeparator)
+	if !ok {
 		return nil, fmt.Errorf("failed to unmarshal library path element: missing prefix")
 	}
-	prefix := data[0:i]
 
 	// If the prefix is known, instantiate and unmarshal the element
 	if constructor, ok := elementConstructors[prefix]; ok {
 		element := constructor()
-		if err := element.Unmarshal(data[i+1:]); err != nil {
+		if err := element.Unmarshal(elem); err != nil {
 			return nil, err
 		}
 		return element, nil
@@ -242,7 +242,7 @@ func (p *LibraryPath) SetLength(length int) {
 func (p *LibraryPath) Unmarshal(s string) error {
 	// Iterate serialised elements
 	var elements []LibraryPathElement
-	for _, s := range strings.Split(s, pathElementSeparator) {
+	for s := range strings.SplitSeq(s, pathElementSeparator) {
 		// Skip over empty elements
 		if s != "" {
 			element, err := UnmarshalLibPathElement(s)
