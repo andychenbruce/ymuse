@@ -79,7 +79,7 @@ func FormatSecondsStr(seconds string) string {
 }
 
 // Default returns a default value if no value is set
-func Default(def string, value interface{}) string {
+func Default(def string, value any) string {
 	if set, ok := template.IsTrue(value); ok && set {
 		return fmt.Sprint(value)
 	}

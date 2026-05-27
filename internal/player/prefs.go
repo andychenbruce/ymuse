@@ -108,7 +108,7 @@ func ShowPreferencesDialog(parent gtk.IWindow, onMpdReconnect, onQueueColumnsCha
 	}
 
 	// Map the handlers to callback functions
-	builder.ConnectSignals(map[string]interface{}{
+	builder.ConnectSignals(map[string]any{
 		"on_PreferencesDialog_map":            d.onMap,
 		"on_Setting_change":                   d.onSettingChange,
 		"on_MpdReconnect":                     onMpdReconnect,
